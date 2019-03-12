@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<!-- manifest="cache.manifest" -->
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <meta name="keywords" content="" />
+    <meta name="description" content=""/>
+    <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="msapplication-tap-highlight" content="no" /> <!-- windows phone 点击无高光 -->
+    <!-- <meta name="apple-mobile-web-app-status-bar-style" content="black"> IOS顶栏变黑 -->
+    <!-- <link rel="apple-touch-icon" href="images/xxx.png" /> IOS高光图标 144x144  -->
+    <!-- <link rel="apple-touch-icon-precomposed" href="images/xxx.png" /> IOS无高光图标 144x144 -->
+    <link type="text/css" rel="stylesheet" href="css/style.css" />
+    <script src="js/jquery.min.js"></script>
+    <script src="js/velocity.js"></script>
+</head>
+<body>
+    <div class="wrap">
+        <div class="white-wrap"></div>
+        <div class="mb"></div>
+        <div class="fxp"></div>
+        <div class="bubble-wrap">
+
+        </div>
+    </div>
+</body>
+<script>
+    function PplGame() {
+        this.R = 18;
+        this.size = this.R * 2;
+        this.bubbleWrap = $('.bubble-wrap');
+        this.bubbleWrap.offsetLeft = this.bubbleWrap.offset().left;
+        this.bubbleWrap.offsetTop = this.bubbleWrap.offset().top;
+        this.bubbleWrapWidth = this.bubbleWrap.width();
+        this.bubbleWrapHeight = this.bubbleWrap.height();
+        this.spanWidth=84;//炸开的box宽度
+        this.spanHeight=84; //炸开的box高度
+        this.col = parseInt(this.bubbleWrapWidth/this.size);
+        this.row = parseInt(this.bubbleWrapHeight/this.size);
+        this.curBubbleX = this.bubbleWrapWidth / 2 - this.R;
+        this.curBubbleY = this.bubbleWrapHeight + this.R;
+        this.colors=['blue','green','red'];
+        this.curColor = this.colors[Math.floor(Math.random()*3)];
+        this.bubbles=[];
+        this.beginGame = false;
+        this.running = false; //泡泡正在运行时
+        this.sum = 0; //泡泡的总数
+        this.angle = 0; //发射和运行的角度
+        this.path=[]; //泡泡的运动轨迹
+        this.disappearDistance = 100; //泡泡下落的距离
+        this._init();
+    }
+    PplGame.prototype={
+        _isEmpty:function(){
+            for(var i=0;i<this.col;i++){
+                if(this.bubbles[i].isOnLine){
+                    return false;
+                }
+            }
+            return true;
+        },
+        _isFull:function(){
+            var lastRow = this.row % 2 === 0 ? this.col -1 : this.col;
+            var length = this.sum;
+            for(var i=length-1;i>=length-lastRow;i--){
+                if(this.bubbles[i].isOnLine){
+                    return true;
+                }
+            }
+            return false;
+        },
+        _gameOver:function(str){
+            this.beginGame = false;
+            var txt = str==='success' ? '成功':'失败';
+            $('body').append('<div class="bg">' +
+                '<div class="game_over">' +
+                '<p>挑战'+txt+'！</p>' +
+                '<p><span class="play_again">再挑战一次</span></p>' +
+                '</div>' +
+                '</div>')
+        },
+        _begin:function(){
+          this._loadBubble();
+          this._addCurBubble();
+          this.beginGame = true;
+        },
+        _getAngle:function(x,y){
+            var oL = x-this.bubbleWrap.offsetLeft;
+            var oT = y-this.bubbleWrap.offsetTop;
+            var cL = this.curBubbleX+this.R;
+            var cT = this.curBubbleY+this.R;
+            return Math.abs(Math.atan2(oT-cT,oL-cL)*180/Math.PI);
+        },
+        _getMoveCurBubbleX:function(){
+            var atan = Math.tan(this.angle * Math.PI/180);
+            var moveTop = this.R/5;
+            var moveLeft = moveTop / atan;
+            return this.curBubbleX + moveLeft;
+        },
+        _getMoveCurBubbleY:function(){
+            var moveTop = this.R/5;
+            return this.curBubbleY - moveTop;
+        },
+        _getCurBubblePosition(){
+            var _this = this;
+            this.curBubbleX = this._getMoveCurBubbleX();
+            this.curBubbleY = this._getMoveCurBubbleY();
+            if(this.curBubbleX<=0){
+                this.curBubbleX=0;
+                this.angle=180-this.angle;
+                this.path.push({
+                    x:_this.curBubbleX,
+                    y:_this.curBubbleY
+                })
+            }
+            if(this.curBubbleX>=this.bubbleWrapWidth-this.size){
+                this.curBubbleX = this.bubbleWrapWidth-this.size;
+                this.angle=180-this.angle;
+                this.path.push({
+                    x:_this.curBubbleX,
+                    y:_this.curBubbleY
+                })
+            }
+            if(this.curBubbleY<=0){
+                this.curBubbleY = 0;
+                this.path.push({
+                    x:_this.curBubbleX,
+                    y:_this.curBubbleY
+                })
+            }
+        },
+        _getPositionIndex:function(){
+            var _this = this;
+            var index = -1;
+            this._getCurBubblePosition();
+            function hit() {
+                if(_this.curBubbleY<=0){
+                    return;
+                }
+                var curCenterBubbleX = _this.curBubbleX + _this.R;
+                var curCenterBubbleY = _this.curBubbleY + _this.R;
+                for(var i=_this.sum-1;i>=0;i--){
+                    var bubbleCenterX = _this.bubbles[i].x+_this.R;
+                    var bubbleCenterY = _this.bubbles[i].y+_this.R;
+                    var distanceX = Math.abs(curCenterBubbleX-bubbleCenterX);
+                    var distanceY = Math.abs(curCenterBubbleY-bubbleCenterY);
+                    var disR = Math.sqrt(Math.pow(distanceX,2)+ Math.pow(distanceY,2));
+                    if(_this.bubbles[i].isOnLine && disR<= _this.size){
+                        index = i;
+                        return;
+                    }
+                }
+                _this._getCurBubblePosition();
+                hit();
+            }
+            hit();
+            return index;
+        },
+        _restVisited:function(){
+            var bubbles = this.bubbles;
+            for(var i=0;i<bubbles.length;i++){
+                bubbles[i].visited = false;
+            }
+        },
+        _findDisappearBubbles:function(i){
+            var _this = this;
+            var disappearIndexes = [];
+            var bubbles = this.bubbles;
+            var curColor = this.curColor;
+            var col = this.col;
+            disappearIndexes.push(i);
+            function  findBubbles(index) {
+                if(bubbles[index].visited){
+                    return;
+                }
+                bubbles[index].visited = true;
+                var topLeftIndex = index-col,topRightIndex = index-col+1,leftIndex = index-1,
+                    rightIndex = index+1,bottomLeftIndex = index+col-1,bottomRightIndex = index+col;
+                if(_this._isExitTopLeft(index) && bubbles[topLeftIndex].isOnLine){
+                    if(bubbles[topLeftIndex].color === curColor){
+                        disappearIndexes.indexOf(topLeftIndex)===-1 && disappearIndexes.push(topLeftIndex);
+                        findBubbles(topLeftIndex);
+                    }
+                }
+                if(_this._isExitTopRight(index) && bubbles[topRightIndex].isOnLine){
+                    if(bubbles[topRightIndex].color === curColor){
+                        disappearIndexes.indexOf(topRightIndex)===-1 &&  disappearIndexes.push(topRightIndex);
+                        findBubbles(topRightIndex);
+                    }
+                }
+                if(_this._isExitLeft(index) && bubbles[leftIndex].isOnLine){
+                    if(bubbles[leftIndex].color === curColor){
+                        disappearIndexes.indexOf(leftIndex)===-1 &&  disappearIndexes.push(leftIndex);
+                        findBubbles(leftIndex);
+                    }
+                }
+                if(_this._isExitRight(index) && bubbles[rightIndex].isOnLine){
+                    if(bubbles[rightIndex].color === curColor){
+                        disappearIndexes.indexOf(rightIndex)===-1 &&  disappearIndexes.push(rightIndex);
+                        findBubbles(rightIndex);
+                    }
+                }
+                if(_this._isExitBottomLeft(index) && bubbles[bottomLeftIndex].isOnLine){
+                    if(bubbles[bottomLeftIndex].color === curColor){
+                        disappearIndexes.indexOf(bottomLeftIndex)===-1 &&  disappearIndexes.push(bottomLeftIndex);
+                        findBubbles(bottomLeftIndex);
+                    }
+                }
+                if(_this._isExitBottomRight(index) && bubbles[bottomRightIndex].isOnLine){
+                    if(bubbles[bottomRightIndex].color === curColor){
+                        disappearIndexes.indexOf(bottomRightIndex)===-1 &&  disappearIndexes.push(bottomRightIndex);
+                        findBubbles(bottomRightIndex);
+                    }
+                }
+            }
+            findBubbles(i);
+            this._restVisited();
+            return disappearIndexes;
+        },
+        _disappearBubbles:function(disappearBubbles){
+            var bubbles = this.bubbles;
+            var $bubbleWrap = this.bubbleWrap;
+            var color = this.curColor;
+            for(var i=0;i<disappearBubbles.length;i++){
+                bubbles[disappearBubbles[i]].color = '';
+                bubbles[disappearBubbles[i]].isOnLine = false;
+                $bubbleWrap.find('div').eq(disappearBubbles[i]).removeClass(color).attr('data-color','');
+                var $span = $('<span class="blow_open blow_open_'+color+'"></span>');
+                var dw = (this.spanWidth-this.size) / 2;
+                var dh = (this.spanHeight-this.size) / 2;
+                $span.css({
+                    left: bubbles[disappearBubbles[i]].x-dw +'px',
+                    top:bubbles[disappearBubbles[i]].y-dh +'px'
+                });
+                $bubbleWrap.append($span);
+                $span.on('animationend webkitAnimationEnd',function () {
+                    $(this).remove();
+                })
+            }
+        },
+        _runAnimate(callback){
+            var _this= this;
+            var path = _this.path;
+            var sum = _this.sum;
+            for(var i=0;i<path.length;i++){
+                var pathItem = path[i];
+                (function (index) {
+                    _this.bubbleWrap.find('div').eq(sum).velocity({
+                        left: pathItem.x,
+                        top: pathItem.y,
+                    },{
+                        duration: 120,
+                        easing:index % 2===0 ? 'ease-in':'ease-out',
+                        complete:function () {
+                            if(index===path.length-1){
+                                callback();
+                            }
+                        }
+                    });
+                })(i);
+            }
+        },
+        _replaceBubble(index){
+            var bubbles = this.bubbles;
+            var $bubbleWrap = this.bubbleWrap;
+            var $curBubble = $bubbleWrap.find('div').eq(this.sum);
+            $bubbleWrap.find('div').eq(index).after($curBubble).remove();
+            $bubbleWrap.find('div').eq(index).html(index).attr('data-color',this.curColor);
+            bubbles[index].isOnLine = true;
+            bubbles[index].color = this.curColor;
+        },
+        _disappearConnectBubblesAction:function(indexes,callback){
+            if(indexes.length>0){
+                var _this = this;
+                var $bubbleWrap = this.bubbleWrap;
+                var bubbles = this.bubbles;
+                for(var i=0;i<indexes.length;i++){
+                    (function(index){
+                        var clone = $bubbleWrap.find('div').eq(indexes[index]).clone();
+                        clone.removeClass(bubbles[indexes[index]].color);
+                        $.Velocity.animate($bubbleWrap.find('div').eq(indexes[index]), {
+                            translateY: _this.disappearDistance+'px'
+                        },{ duration: 200 }).then(function(elements) {
+                            $bubbleWrap.find('div').eq(indexes[index]).before(clone).remove();
+                            bubbles[indexes[index]].color='';
+                            bubbles[indexes[index]].isOnLine=false;
+                            if(index === indexes.length-1){
+                                callback();
+                            }
+                        });
+                    })(i);
+                }
+            }else{
+                callback();
+            }
+        },
+        _getDisappearConnectBubblesIndexes:function(){
+            var col = this.col;
+            var bubbles = this.bubbles;
+            var _this = this;
+            var disappearConnectBubblesIndexes = [];
+            for(var i=0;i<col;i++){
+                if(!bubbles[i].visited && bubbles[i].isOnLine){
+                    loop(i);
+                }
+            }
+            function loop(index) {
+                if(bubbles[index].visited || !bubbles[index].isOnLine){
+                    return;
+                }
+                bubbles[index].visited = true;
+                var topLeftIndex = index-col,topRightIndex = index-col+1,leftIndex = index-1,
+                    rightIndex = index+1,bottomLeftIndex = index+col-1,bottomRightIndex = index+col;
+                if(_this._isExitTopLeft(index)){
+                    loop(topLeftIndex)
+                }
+                if(_this._isExitTopRight(index)){
+                    loop(topRightIndex)
+                }
+                if(_this._isExitLeft(index)){
+                    loop(leftIndex)
+                }
+                if(_this._isExitRight(index)){
+                    loop(rightIndex)
+                }
+                if(_this._isExitBottomLeft(index)){
+                    loop(bottomLeftIndex)
+                }
+                if(_this._isExitBottomRight(index)){
+                    loop(bottomRightIndex)
+                }
+            }
+            for(var j=0;j<bubbles.length;j++){
+                if(!bubbles[j].visited && bubbles[j].isOnLine){
+                    disappearConnectBubblesIndexes.push(j);
+                }
+            }
+            this._restVisited();
+            return disappearConnectBubblesIndexes;
+        },
+        _run:function(x,y){
+            var bubbles = this.bubbles;
+            var bubbleWrap = this.bubbleWrap;
+            var _this = this;
+            this.running = true;
+            this.angle = this._getAngle(x,y);
+            var positionIndex = this._getPositionIndex();
+            var fixPositionIndex = positionIndex !==-1 ? this._fixPositionIndex(positionIndex) : this._findTopMinDistanceIndex();
+            this.path.push({
+                x:bubbles[fixPositionIndex].x,
+                y:bubbles[fixPositionIndex].y
+            });
+            _this._runAnimate(function () {
+                _this._replaceBubble(fixPositionIndex);
+                var disappearBubbles = _this._findDisappearBubbles(fixPositionIndex);
+                if(disappearBubbles.length>=3){
+                    _this._disappearBubbles(disappearBubbles);
+                    _this._disappearConnectBubblesAction(_this._getDisappearConnectBubblesIndexes(),function () {
+                        if(_this._isEmpty()){
+                            _this._gameOver('success');
+                        }
+                        _this.running = false;
+                    });
+                }else{
+                    if(_this._isFull()){
+                        _this._gameOver('fail');
+                    }
+                    _this.running = false;
+                }
+
+            });
+        },
+        _findTopMinDistanceIndex:function(){
+           var bubbles = this.bubbles;
+           var col = this.col;
+           var x = this.curBubbleX;
+           var distance = [];
+           for(var i=0;i<col;i++){
+               distance.push({
+                   index : i,
+                   distance:Math.abs(x-bubbles[i].x)
+               })
+           }
+           return distance.reduce(function (obj,item,index) {
+               if(item.distance<obj.distance){
+                   return item;
+               }else {
+                   return obj;
+               }
+           },distance[0]).index;
+        },
+        _fixPositionIndex:function(index){
+            var col = this.col;
+            var bubbles = this.bubbles;
+            var R = this.R;
+            var distance = [];
+            var topLeftIndex = index-col,topRightIndex = index-col+1,leftIndex = index-1,
+                rightIndex = index+1,bottomLeftIndex = index+col-1,bottomRightIndex = index+col;
+            var curBubbleCenterX = this.curBubbleX+R;
+            var curBubbleCenterY = this.curBubbleY+R;
+            if(this._isExitTopLeft(index) && !bubbles[topLeftIndex].isOnLine){
+                distance.push({
+                    index:topLeftIndex,
+                    distance:Math.sqrt(Math.pow(curBubbleCenterX-(bubbles[topLeftIndex].x+R),2)+Math.pow(curBubbleCenterY-(bubbles[topLeftIndex].y+R),2))
+                });
+            }
+            if(this._isExitTopRight(index) && !bubbles[topRightIndex].isOnLine){
+                distance.push({
+                    index:topRightIndex,
+                    distance:Math.sqrt(Math.pow(curBubbleCenterX-(bubbles[topRightIndex].x+R),2)+Math.pow(curBubbleCenterY-(bubbles[topRightIndex].y+R),2))
+                });
+            }
+            if(this._isExitLeft(index) && !bubbles[leftIndex].isOnLine){
+                distance.push({
+                    index:leftIndex,
+                    distance:Math.sqrt(Math.pow(curBubbleCenterX-(bubbles[leftIndex].x+R),2)+Math.pow(curBubbleCenterY-(bubbles[leftIndex].y+R),2))
+                })
+            }
+            if(this._isExitRight(index) && !bubbles[rightIndex].isOnLine){
+                distance.push({
+                    index:rightIndex,
+                    distance:Math.sqrt(Math.pow(curBubbleCenterX-(bubbles[rightIndex].x+R),2)+Math.pow(curBubbleCenterY-(bubbles[rightIndex].y+R),2))
+                });
+            }
+            if(this._isExitBottomLeft(index) && !bubbles[bottomLeftIndex].isOnLine){
+                distance.push({
+                    index:bottomLeftIndex,
+                    distance:Math.sqrt(Math.pow(curBubbleCenterX-(bubbles[bottomLeftIndex].x+R),2)+Math.pow(curBubbleCenterY-(bubbles[bottomLeftIndex].y+R),2))
+                });
+            }
+            if(this._isExitBottomRight(index) && !bubbles[bottomRightIndex].isOnLine){
+                distance.push({
+                    index:bottomRightIndex,
+                    distance:Math.sqrt(Math.pow(curBubbleCenterX-(bubbles[bottomRightIndex].x+R),2)+Math.pow(curBubbleCenterY-(bubbles[bottomRightIndex].y+R),2))
+                });
+            }
+            return distance.reduce(function (obj,item,index) {
+                if(item.distance<obj.distance){
+                    return item;
+                }else {
+                    return obj;
+                }
+            },distance[0]).index;
+        },
+        _rendHtml:function(x,y,index,color){
+            //return '<div style="left:'+x+'px;top:'+y+'px" class="bubble '+color+'" data-color="'+color+'">'+index+'</div>';
+            return '<div style="left:'+x+'px;top:'+y+'px" class="bubble '+color+'" data-color="'+color+'">'+index+'</div>';
+        },
+        _addCurBubble:function(str){
+            var x = this.bubbleWrapWidth / 2 - this.R;
+            var y = this.bubbleWrapHeight + this.R;
+            var color = str==='next'? this.colors[Math.floor(Math.random()*3)] : this.curColor;
+            var html = this._rendHtml(x,y,this.sum,color);
+            this.bubbleWrap.append(html);
+        },
+        _isExitTopLeft:function(n){
+            var col = this.col;
+            if(n<col || n % (2*col-1)===0){
+                return false;
+            }else{
+                return true;
+            }
+        },
+        _isExitTopRight:function(n){
+            var col = this.col;
+            if(n<col || n % (2*col-1)===col-1){
+                return false;
+            }else{
+                return true;
+            }
+        },
+        _isExitLeft:function(n){
+            var col = this.col;
+            if(n % (2*col-1)===0 || n % (2*col-1)===col){
+                return false;
+            }else{
+                return true;
+            }
+        },
+        _isExitRight:function(n){
+            var col = this.col;
+            if(n % (2*col-1)===col-1 || n % (2*col-1)===2*col-2){
+                return false;
+            }else{
+                return true;
+            }
+        },
+        _isExitBottomLeft:function(n){
+            var col = this.col;
+            var sum = this.sum;
+            if(n+col-1>sum-1 || n % (2*col-1)===0){
+                return false;
+            }else{
+                return true;
+            }
+        },
+        _isExitBottomRight:function(n){
+            var col = this.col;
+            var sum = this.sum;
+            if(n+col>sum || n % (2*col-1)===col-1){
+                return false;
+            }else{
+                return true;
+            }
+        },
+        _enumerate:function () {
+            var arr=[];
+            var _this = this;
+            for(var i = 0;i<this.sum;i++){
+                arr.push({
+                    tl:_this._isExitTopLeft(i),
+                    tr:_this._isExitTopRight(i),
+                    l:_this._isExitLeft(i),
+                    r:_this._isExitRight(i),
+                    bl:_this._isExitBottomLeft(i),
+                    br:_this._isExitBottomRight(i)
+                })
+            }
+            console.log(arr);
+        },
+        _loadBubble:function(){
+            var html = '';
+            var index=0;
+            this.bubbles = [];
+            for(var i = 0;i<this.row;i++){
+                var n = i % 2===0 ? this.col : this.col-1;
+                var extraLeft = i % 2===0 ? 0 : this.R;
+                var rowType = i % 2===0 ? 'even':'odd';
+                for(var j=0;j<n;j++){
+                    var x = j*this.size + extraLeft;
+                    var y = i*this.size;
+                    var color = i<3 ? this.colors[Math.floor(Math.random()*3)]:'';
+                    this.bubbles.push({
+                        index:index,
+                        x:x,
+                        y:y,
+                        color:color,//泡泡的颜色
+                        isOnLine:i<3 ? true : false, //是否在线
+                        rowType:rowType, //行的类型是偶数还是奇数
+                        connect:0,  //连通性
+                        visited:false  //是否访问过
+                    });
+                    html+=this._rendHtml(x,y,index,color);
+                    index++;
+                }
+            }
+            this.bubbleWrap.html(html);
+            this.sum = this.bubbleWrap.find('div').length;
+        },
+        _rest:function(){
+            this.curBubbleX = this.bubbleWrapWidth / 2 - this.R;
+            this.curBubbleY = this.bubbleWrapHeight + this.R;
+            this.curColor = this.bubbleWrap.find('div').eq(this.sum).attr('data-color');
+            this.path=[];
+        },
+        _bgMove:function(){
+          $('.bg').remove();
+        },
+        _events:function(){
+            var _this = this;
+            var $bubble = this.bubbleWrap.find('div');
+            $(document).on('click','.begin,.play_again',function () {
+                _this._bgMove();
+                _this._begin();
+                _this._rest();
+            });
+            this.bubbleWrap.on('click',function (e) {
+                if(_this.beginGame && !_this.running){
+                    _this._addCurBubble('next');
+                    _this._rest();
+                    _this._run(e.clientX,e.clientY);
+                }
+            });
+            this.bubbleWrap.on('click','div:last-child',function (e) {
+                e.stopPropagation();
+            });
+            $(window).on('resize',function () {
+                _this.bubbleWrap.offsetLeft = _this.bubbleWrap.offset().left;
+                _this.bubbleWrap.offsetTop = _this.bubbleWrap.offset().top;
+            })
+        },
+        _init:function(){
+            this._events();
+            var $div = $('<div class="bg"><span class="begin">开始游戏</span></div>');
+            $('body').append($div);
+        }
+    };
+    var pplGame = new PplGame();
+</script>
+</html>
+
+
