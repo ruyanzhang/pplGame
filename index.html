@@ -268,7 +268,8 @@
             var $bubbleWrap = this.bubbleWrap;
             var $curBubble = $bubbleWrap.find('div').eq(this.sum);
             $bubbleWrap.find('div').eq(index).after($curBubble).remove();
-            $bubbleWrap.find('div').eq(index).html(index).attr('data-color',this.curColor);
+            //$bubbleWrap.find('div').eq(index).html(index).attr('data-color',this.curColor);
+			$bubbleWrap.find('div').eq(index).attr('data-color',this.curColor);
             bubbles[index].isOnLine = true;
             bubbles[index].color = this.curColor;
         },
@@ -447,7 +448,7 @@
         },
         _rendHtml:function(x,y,index,color){
             //return '<div style="left:'+x+'px;top:'+y+'px" class="bubble '+color+'" data-color="'+color+'">'+index+'</div>';
-            return '<div style="left:'+x+'px;top:'+y+'px" class="bubble '+color+'" data-color="'+color+'">'+index+'</div>';
+			return '<div style="left:'+x+'px;top:'+y+'px" class="bubble '+color+'" data-color="'+color+'"></div>';
         },
         _addCurBubble:function(str){
             var x = this.bubbleWrapWidth / 2 - this.R;
